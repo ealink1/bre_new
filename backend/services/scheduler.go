@@ -115,7 +115,7 @@ func analyzeAndSaveWithDeps(db *gorm.DB, analyzeNews AnalyzeNewsFunc, days int, 
 
 	var sb strings.Builder
 	for _, n := range recentNews {
-		sb.WriteString(fmt.Sprintf("- %s\n", n.Content))
+		sb.WriteString(fmt.Sprintf("- %s-%s\n", n.Content, n.Url))
 	}
 
 	// 调用 AI 进行分析

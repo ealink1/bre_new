@@ -202,7 +202,8 @@ type NewsData struct {
 
 func GetDailyNews() ([]NewsData, error) {
 	today := time.Now().Format("2006-01-02")
-	prompt := `联网、联网，全网总结 ` + today + ` 当天的国内外热点新闻并标记每个新闻的发布时间，要从多个新闻网站获取数据，对相同的内容的新闻进行去重处理，并总结成 20 条，请严格按照 JSON 对象数组格式输出，
+	prompt := `联网、联网，全网总结(至少 10 个平台) ` + today + ` 当天的国内外热点新闻并标记每个新闻的发布时间，要从多个新闻网站获取数据，
+	对相同的内容的新闻进行去重处理，并总结成 20 条，请严格按照 JSON 对象数组格式输出，
 	每个对象包含 title 和 url 字段。其中 url 必须是该新闻真实存在的原始报道链接（如新华网、人民网、Reuters 等），
 	绝不要臆造无法访问的链接。如果无法获取真实链接则不采纳此新闻，url 必须要有保证可靠。
 	不要包含 Markdown 标记或其他多余文字。
@@ -232,7 +233,8 @@ func GetDailyNews() ([]NewsData, error) {
 }
 
 func AnalyzeNews(newsContent string, days int) (string, error) {
-	prompt := fmt.Sprintf("以下是过去 %d 天的新闻内容，请进行简要的财经分析，并推荐相关的3个板块及匹配度：\n%s", days, newsContent)
+	prompt := fmt.Sprintf("以下是过去 %d 天的新闻内容，请进行简要的财经分析，并推荐相关的3个板块及匹配度(只能在我给定的内容中总结分析，不要分散)：\n%s", days, newsContent)
+	log.Println("AI Prompt: %s", prompt)
 	return CallAI(prompt)
 }
 
@@ -284,9 +286,9 @@ func CallAIWebSearch(systemPrompt, prompt string) (string, error) {
 		},
 		Tools: []WebSearchTool{
 			{
-				Type:    "web_search",
-				Limit:   50,
-				Sources: []string{"toutiao", "douyin", "moji"},
+				Type:  "web_search",
+				Limit: 50,
+				//Sources: []string{"toutiao", "douyin", "moji"},
 			},
 		},
 		Stream: false,
