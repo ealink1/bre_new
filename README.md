@@ -1,5 +1,8 @@
 # bre_new
 
+## 在线演示 (Live Demo)
+👉 [https://cj.wsky.fun/](https://cj.wsky.fun/)
+
 ## 系统功能介绍
 
 本项目是一个集成了金融新闻自动采集、AI 分析与实时贵金属行情展示的全栈系统。
