@@ -1,0 +1,6 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <!-- 调整为浅红色背景，适配红色线条 -->
+  <rect width="32" height="32" rx="6" fill="#ffebee"/>
+  <!-- 线条颜色改为红色 #c62828（财经类下跌常用红） -->
+  <path d="M8 20l4-6 5 4 7-8" stroke="#c62828" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

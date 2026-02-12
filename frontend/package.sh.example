@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$project_dir"
+
+if ! command -v npm >/dev/null 2>&1; then
+  echo "npm not found"
+  exit 1
+fi
+
+if [ ! -d node_modules ]; then
+  if [ -f package-lock.json ]; then
+    npm ci
+  else
+    npm install
+  fi
+fi
+
+npm run build
+
+if [ ! -d dist ]; then
+  echo "dist directory not found"
+  exit 1
+fi
+
+mkdir -p release
+artifact="release/frontend-dist-$(date +%Y%m%d%H%M%S).tar.gz"
+tar -czf "$artifact" dist
+echo "$artifact"

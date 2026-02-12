@@ -1,0 +1,12 @@
+mysql:
+  host: "127.0.0.1"
+  port: 3306
+  user: "root"
+  password: "b9pjL1yT"
+  database: "news"
+
+ai:
+  api_key: "xxxxxxx-f7c8-4021-8006-xxxxxxx"
+
+system:
+  port: "4001"

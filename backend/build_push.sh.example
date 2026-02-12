@@ -1,0 +1,205 @@
+#!/bin/bash
+# 简介：构建并部署 Go 二进制到远程服务器的辅助脚本
+# 功能：build（仅构建）、deploy（仅部署）、push（构建并全量上传资源后部署）
+# 用法示例：
+#   ./build_and_push_test.sh build
+#   ./build_and_push_test.sh deploy [--full]
+#   ./build_and_push_test.sh push
+# 主要环境变量（可通过 export 或前缀传入）：
+#   GOOS / GOARCH / OUTPUT_NAME / MAIN_ENTRY / LDFLAGS_VALUE
+#   DEPLOY_SSH_TARGET / DEPLOY_HOST / DEPLOY_USER / DEPLOY_PORT
+#   DEPLOY_PATH / DEPLOY_RESTART_CMD / DEPLOY_PID_FILE / DEPLOY_LOG_FILE
+#   DEPLOY_START_ARGS / DEPLOY_START_CMD
+# 说明：
+# - 当 DEPLOY_SSH_TARGET 为空时使用 DEPLOY_USER@DEPLOY_HOST 并默认端口 22
+# - --full 会同时上传 manifest/（排除 config/**）与 resource/
+# - 部署流程会尝试停止已有进程、上传新二进制并以 nohup 方式启动
+
+set -e
+
+ACTION="${1:-push}"
+
+GOOS_VALUE="${GOOS:-linux}"
+GOARCH_VALUE="${GOARCH:-amd64}"
+OUTPUT_NAME="${OUTPUT_NAME:-bre_new}"
+MAIN_ENTRY="${MAIN_ENTRY:-main.go}"
+LDFLAGS_VALUE="${LDFLAGS_VALUE:--s -w}"
+
+ # 构建阶段：交叉编译 Go 二进制（默认禁用 CGO）
+build_binary() {
+    echo "Building for ${GOOS_VALUE} (${GOARCH_VALUE})..."
+    # 使用 GOOS/GOARCH 进行交叉编译，输出到 OUTPUT_NAME，入口 MAIN_ENTRY
+    CGO_ENABLED=0 GOOS="${GOOS_VALUE}" GOARCH="${GOARCH_VALUE}" go build -ldflags "${LDFLAGS_VALUE}" -o "${OUTPUT_NAME}" "${MAIN_ENTRY}"
+    echo "Build successful. Binary '${OUTPUT_NAME}' created."
+}
+
+ # 部署阶段：通过 SSH/rsync/scp 上传并启动服务
+deploy_binary() {
+    # 解析部署相关环境变量及默认值
+    DEPLOY_SSH_TARGET="${DEPLOY_SSH_TARGET:-}"
+    DEPLOY_HOST="${DEPLOY_HOST:-114.132.245.76}"
+    DEPLOY_USER="${DEPLOY_USER:-root}"
+    DEPLOY_PORT="${DEPLOY_PORT:-}"
+    DEPLOY_PATH="${DEPLOY_PATH:-/111workspace/news}"
+    DEPLOY_RESTART_CMD="${DEPLOY_RESTART_CMD:-sudo systemctl restart bre_new.service}"
+    DEPLOY_PID_FILE="${DEPLOY_PID_FILE:-${DEPLOY_PATH}/.service.pid}"
+    DEPLOY_LOG_FILE="${DEPLOY_LOG_FILE:-${DEPLOY_PATH}/logs/access.log}"
+    DEPLOY_START_ARGS="${DEPLOY_START_ARGS:-}"
+    DEPLOY_START_CMD="${DEPLOY_START_CMD:-}"
+
+    SSH_TARGET="${DEPLOY_SSH_TARGET}"
+    if [ -z "${SSH_TARGET}" ]; then
+        SSH_TARGET="${DEPLOY_USER}@${DEPLOY_HOST}"
+        DEPLOY_PORT="${DEPLOY_PORT:-22}"
+    fi
+
+    if [ -z "${SSH_TARGET}" ] || [ -z "${DEPLOY_PATH}" ]; then
+        echo "Deploy failed: DEPLOY_SSH_TARGET or DEPLOY_HOST/DEPLOY_USER and DEPLOY_PATH is required."
+        exit 1
+    fi
+
+    # 先构建本地二进制
+    build_binary
+
+    SSH_PORT_ARGS=()
+    if [ -n "${DEPLOY_PORT}" ]; then
+        SSH_PORT_ARGS=(-p "${DEPLOY_PORT}")
+    fi
+
+    echo "Preparing remote directory ${SSH_TARGET}:${DEPLOY_PATH}/ ..."
+    # 确保远程部署目录存在
+    ssh "${SSH_PORT_ARGS[@]}" "${SSH_TARGET}" "mkdir -p \"${DEPLOY_PATH}\""
+
+    echo "Stopping existing service (if any)..."
+    # 尝试优雅停止已有服务（读取 PID 文件，kill 进程，清理 PID 文件）
+    ssh "${SSH_PORT_ARGS[@]}" "${SSH_TARGET}" "bash -lc 'set +e; cd \"${DEPLOY_PATH}\"; if [ -f \"${DEPLOY_PID_FILE}\" ]; then PID=\$(cat \"${DEPLOY_PID_FILE}\" || true); if [ -n \"\${PID}\" ] && ps -p \"\${PID}\" >/dev/null 2>&1; then kill \"\${PID}\" || true; sleep 2; if ps -p \"\${PID}\" >/dev/null 2>&1; then kill -9 \"\${PID}\" || true; fi; fi; rm -f \"${DEPLOY_PID_FILE}\"; fi'"
+    # 再兜底按路径匹配杀掉旧进程
+    ssh "${SSH_PORT_ARGS[@]}" "${SSH_TARGET}" "bash -lc 'set +e; pkill -f \"${DEPLOY_PATH}/${OUTPUT_NAME}\" >/dev/null 2>&1 || true'" || true
+
+    echo "Deleting old binary on remote..."
+    # 删除远程旧二进制，避免文件被锁
+    ssh "${SSH_PORT_ARGS[@]}" "${SSH_TARGET}" "rm -f \"${DEPLOY_PATH}/${OUTPUT_NAME}\""
+
+    echo "Uploading binary to ${SSH_TARGET}:${DEPLOY_PATH}/ ..."
+    # 选择 rsync 优先，若不可用则回退到 scp
+    if command -v rsync >/dev/null 2>&1; then
+        if [ -n "${DEPLOY_PORT}" ]; then
+            rsync -az -e "ssh -p ${DEPLOY_PORT}" "./${OUTPUT_NAME}" "${SSH_TARGET}:${DEPLOY_PATH}/${OUTPUT_NAME}"
+        else
+            rsync -az -e "ssh" "./${OUTPUT_NAME}" "${SSH_TARGET}:${DEPLOY_PATH}/${OUTPUT_NAME}"
+        fi
+    else
+        if [ -n "${DEPLOY_PORT}" ]; then
+            scp -P "${DEPLOY_PORT}" "./${OUTPUT_NAME}" "${SSH_TARGET}:${DEPLOY_PATH}/${OUTPUT_NAME}"
+        else
+            scp "./${OUTPUT_NAME}" "${SSH_TARGET}:${DEPLOY_PATH}/${OUTPUT_NAME}"
+        fi
+    fi
+
+    # --full：上传 manifest/（排除 config/**）与 resource/
+    if [ "${2:-}" = "--full" ]; then
+        has_manifest="false"
+        has_resource="false"
+        if [ -d "./manifest" ]; then has_manifest="true"; fi
+        if [ -d "./resource" ]; then has_resource="true"; fi
+
+        if [ "${has_manifest}" = "false" ] && [ "${has_resource}" = "false" ]; then
+            echo "Skipping resource upload: manifest/ and resource/ not found."
+        else
+            echo "Uploading extra resources..."
+
+            if [ "${has_manifest}" = "true" ]; then
+                ssh "${SSH_PORT_ARGS[@]}" "${SSH_TARGET}" "mkdir -p \"${DEPLOY_PATH}/manifest\""
+                if command -v rsync >/dev/null 2>&1; then
+                    if [ -n "${DEPLOY_PORT}" ]; then
+                        rsync -az -e "ssh -p ${DEPLOY_PORT}" --exclude "config/**" "./manifest/" "${SSH_TARGET}:${DEPLOY_PATH}/manifest/"
+                    else
+                        rsync -az -e "ssh" --exclude "config/**" "./manifest/" "${SSH_TARGET}:${DEPLOY_PATH}/manifest/"
+                    fi
+                else
+                    if [ -n "${DEPLOY_PORT}" ]; then
+                        scp -P "${DEPLOY_PORT}" -r "./manifest" "${SSH_TARGET}:${DEPLOY_PATH}/"
+                    else
+                        scp -r "./manifest" "${SSH_TARGET}:${DEPLOY_PATH}/"
+                    fi
+                fi
+            fi
+
+            if [ "${has_resource}" = "true" ]; then
+                ssh "${SSH_PORT_ARGS[@]}" "${SSH_TARGET}" "mkdir -p \"${DEPLOY_PATH}/resource\""
+                if command -v rsync >/dev/null 2>&1; then
+                    if [ -n "${DEPLOY_PORT}" ]; then
+                        rsync -az -e "ssh -p ${DEPLOY_PORT}" "./resource/" "${SSH_TARGET}:${DEPLOY_PATH}/resource/"
+                    else
+                        rsync -az -e "ssh" "./resource/" "${SSH_TARGET}:${DEPLOY_PATH}/resource/"
+                    fi
+                else
+                    if [ -n "${DEPLOY_PORT}" ]; then
+                        scp -P "${DEPLOY_PORT}" -r "./resource" "${SSH_TARGET}:${DEPLOY_PATH}/"
+                    else
+                        scp -r "./resource" "${SSH_TARGET}:${DEPLOY_PATH}/"
+                    fi
+                fi
+            fi
+        fi
+    fi
+
+    # 优先执行自定义重启命令；否则执行默认启动流程
+    if [ -n "${DEPLOY_RESTART_CMD}" ]; then
+        echo "Running restart command on remote..."
+        ssh "${SSH_PORT_ARGS[@]}" "${SSH_TARGET}" "cd \"${DEPLOY_PATH}\" && ${DEPLOY_RESTART_CMD}"
+    else
+        echo "Starting service on remote..."
+        # 默认：nohup 启动，记录 PID，写日志到 DEPLOY_LOG_FILE，并校验进程
+        ssh "${SSH_PORT_ARGS[@]}" "${SSH_TARGET}" "bash -lc 'set -e; cd \"${DEPLOY_PATH}\"; mkdir -p \"\$(dirname \"${DEPLOY_LOG_FILE}\")\"; chmod +x \"./${OUTPUT_NAME}\"; if [ -n \"${DEPLOY_START_CMD}\" ]; then nohup bash -lc \"${DEPLOY_START_CMD}\" >> \"${DEPLOY_LOG_FILE}\" 2>&1 & else nohup \"./${OUTPUT_NAME}\" ${DEPLOY_START_ARGS} >> \"${DEPLOY_LOG_FILE}\" 2>&1 & fi; echo \$! > \"${DEPLOY_PID_FILE}\"; sleep 1; ps -p \$(cat \"${DEPLOY_PID_FILE}\") >/dev/null 2>&1'"
+    fi
+
+    echo "Deploy successful."
+}
+
+ # 帮助信息：说明用法与环境变量
+print_help() {
+    echo "Usage:"
+    echo "  ./build_push.sh (default: push - build, deploy binary & resources, restart)"
+    echo "  ./build_push.sh build"
+    echo "  ./build_push.sh deploy [--full]"
+    echo "  ./build_push.sh push"
+    echo ""
+    echo "Build env:"
+    echo "  GOOS (default: linux)"
+    echo "  GOARCH (default: amd64)"
+    echo "  OUTPUT_NAME (default: bre_new)"
+    echo "  MAIN_ENTRY (default: main.go)"
+    echo ""
+    echo "Deploy env:"
+    echo "  DEPLOY_SSH_TARGET (optional, ssh config host or user@host)"
+    echo "  DEPLOY_HOST (default: 114.132.245.76)"
+    echo "  DEPLOY_USER (default: root)"
+    echo "  DEPLOY_PORT (default: 22 when DEPLOY_SSH_TARGET is empty)"
+    echo "  DEPLOY_PATH (default: /111workspace/news)"
+    echo "  DEPLOY_RESTART_CMD (optional, e.g. sudo systemctl restart bre_new.service)"
+    echo "  DEPLOY_PID_FILE (default: /111workspace/news/.service.pid)"
+    echo "  DEPLOY_LOG_FILE (default: /111workspace/news/logs/access.log)"
+    echo "  DEPLOY_START_ARGS (optional, appended to binary)"
+    echo "  DEPLOY_START_CMD (optional, custom command to start service)"
+}
+
+ # 子命令分发：build / deploy / push / help
+case "${ACTION}" in
+    build)
+        build_binary
+        ;;
+    deploy)
+        deploy_binary "$@"
+        ;;
+    push)
+        deploy_binary "deploy"
+        ;;
+    help|-h|--help)
+        print_help
+        ;;
+    *)
+        print_help
+        exit 1
+        ;;
+esac
