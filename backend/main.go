@@ -14,6 +14,7 @@ func main() {
 	// 1. Init Config & DB
 	config.InitConfig()
 	config.InitDB()
+	_ = services.EnsureAdminUser(config.DB)
 
 	// 2. Setup Cron
 	c := cron.New()
@@ -96,11 +97,52 @@ func main() {
 	{
 		api.GET("/news/latest", controllers.GetLatestNews)
 		api.GET("/analysis/latest", controllers.GetLatestAnalysis)
-		// Admin trigger for testing
-		api.POST("/admin/trigger-update", func(c *gin.Context) {
+		api.GET("/sites/categories", controllers.GetSiteCategories)
+	}
+
+	admin := api.Group("/admin")
+	{
+		// admin.POST("/setup", controllers.AdminSetup) // 暂时不开放此功能
+		admin.POST("/login", controllers.AdminLogin)
+	}
+
+	adminAuthed := api.Group("/admin")
+	adminAuthed.Use(controllers.AdminAuthMiddleware())
+	{
+		adminAuthed.POST("/logout", controllers.AdminLogout)
+		adminAuthed.POST("/trigger-update", func(c *gin.Context) {
 			go services.RunUpdateTask()
-			c.JSON(200, gin.H{"message": "Update task triggered"})
+			c.JSON(200, gin.H{"code": 200, "msg": "success"})
 		})
+
+		adminAuthed.GET("/users", controllers.AdminUserList)
+		adminAuthed.POST("/users", controllers.AdminUserCreate)
+		adminAuthed.PATCH("/users/:id/password", controllers.AdminUserSetPassword)
+		adminAuthed.DELETE("/users/:id", controllers.AdminUserDelete)
+
+		adminAuthed.GET("/site-categories", controllers.AdminSiteCategoryList)
+		adminAuthed.POST("/site-categories", controllers.AdminSiteCategoryCreate)
+		adminAuthed.PATCH("/site-categories/:id", controllers.AdminSiteCategoryUpdate)
+		adminAuthed.DELETE("/site-categories/:id", controllers.AdminSiteCategoryDelete)
+
+		adminAuthed.GET("/sites", controllers.AdminSiteList)
+		adminAuthed.POST("/sites", controllers.AdminSiteCreate)
+		adminAuthed.PATCH("/sites/:id", controllers.AdminSiteUpdate)
+		adminAuthed.DELETE("/sites/:id", controllers.AdminSiteDelete)
+
+		adminAuthed.GET("/batches", controllers.AdminBatchList)
+		adminAuthed.GET("/batches/:id/news", controllers.AdminBatchNewsList)
+		adminAuthed.DELETE("/batches/:id", controllers.AdminBatchDelete)
+
+		adminAuthed.GET("/news", controllers.AdminNewsList)
+		adminAuthed.POST("/news", controllers.AdminNewsCreate)
+		adminAuthed.PATCH("/news/:id", controllers.AdminNewsUpdate)
+		adminAuthed.DELETE("/news/:id", controllers.AdminNewsDelete)
+
+		adminAuthed.GET("/analysis", controllers.AdminAnalysisList)
+		adminAuthed.POST("/analysis", controllers.AdminAnalysisCreate)
+		adminAuthed.PATCH("/analysis/:id", controllers.AdminAnalysisUpdate)
+		adminAuthed.DELETE("/analysis/:id", controllers.AdminAnalysisDelete)
 	}
 
 	// 4. Run

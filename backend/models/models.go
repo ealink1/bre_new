@@ -59,3 +59,42 @@ type TrafficStat struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
+type SiteCategory struct {
+	ID        uint           `gorm:"primaryKey" json:"id"`
+	Name      string         `json:"name"`
+	Sort      int            `json:"sort"`
+	Sites     []SiteItem     `gorm:"foreignKey:CategoryID" json:"sites"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+type SiteItem struct {
+	ID          uint           `gorm:"primaryKey" json:"id"`
+	CategoryID  uint           `json:"category_id"`
+	Name        string         `json:"name"`
+	Url         string         `json:"url"`
+	Description string         `json:"description"`
+	Icon        string         `json:"icon"`
+	Sort        int            `json:"sort"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+type AdminUser struct {
+	ID           uint           `gorm:"primaryKey" json:"id"`
+	Username     string         `gorm:"uniqueIndex;size:64" json:"username"`
+	PasswordHash string         `gorm:"size:255" json:"-"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+type AdminSession struct {
+	Token     string    `gorm:"primaryKey;size:128" json:"token"`
+	UserID    uint      `gorm:"index" json:"user_id"`
+	ExpiresAt time.Time `gorm:"index" json:"expires_at"`
+	CreatedAt time.Time `json:"created_at"`
+}

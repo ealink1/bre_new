@@ -8,3 +8,4 @@ const api = axios.create({
 
 export const fetchLatestNews = () => api.get('/news/latest');
 export const fetchAnalysis = (days) => api.get(`/analysis/latest?days=${days}`);
+export const fetchSiteCategories = () => api.get('/sites/categories');

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func GetLatestNews(c *gin.Context) {
@@ -58,5 +59,27 @@ func GetLatestAnalysis(c *gin.Context) {
 		"code": 200,
 		"msg":  "success",
 		"data": analysis,
+	})
+}
+
+func GetSiteCategories(c *gin.Context) {
+	var categories []models.SiteCategory
+	db := config.DB
+	err := db.Order("sort asc, id asc").Preload("Sites", func(tx *gorm.DB) *gorm.DB {
+		return tx.Order("sort asc, id asc")
+	}).Find(&categories).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code": 500,
+			"msg":  "query failed",
+			"rows": []interface{}{},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"msg":  "success",
+		"rows": categories,
 	})
 }

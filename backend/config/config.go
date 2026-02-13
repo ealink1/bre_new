@@ -60,7 +60,16 @@ func InitDB() {
 	}
 
 	// Auto Migrate
-	err = DB.AutoMigrate(&models.BatchLog{}, &models.NewsItem{}, &models.Analysis{}, &models.TrafficStat{})
+	err = DB.AutoMigrate(
+		&models.BatchLog{},
+		&models.NewsItem{},
+		&models.Analysis{},
+		&models.TrafficStat{},
+		&models.SiteCategory{},
+		&models.SiteItem{},
+		&models.AdminUser{},
+		&models.AdminSession{},
+	)
 	if err != nil {
 		log.Fatal("Failed to migrate database:", err)
 	}

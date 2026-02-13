@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { fetchLatestNews, fetchAnalysis } from './api'
+import { fetchLatestNews, fetchAnalysis, fetchSiteCategories } from './api'
 import MarkdownIt from 'markdown-it'
 import GoldPrice from './components/GoldPrice.vue'
 import SilverPrice from './components/SilverPrice.vue'
@@ -10,11 +10,20 @@ const newsList = ref([])
 const batchInfo = ref(null)
 const analysis3Day = ref(null)
 const analysis7Day = ref(null)
-const activeTab = ref('home') // 'home', '3day', '7day'
+const siteCategories = ref([])
+const activeTab = ref('home')
 const loading = ref(true)
+const siteLoading = ref(true)
+
+const normalizeSiteUrl = (url) => {
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url)) return url
+  return `https://${url}`
+}
 
 const loadData = async () => {
   loading.value = true
+  siteLoading.value = true
   try {
     // Load News
     const newsRes = await fetchLatestNews()
@@ -34,10 +43,17 @@ const loadData = async () => {
       analysis7Day.value = analysis7Res.data.data
     }
 
+    const siteRes = await fetchSiteCategories()
+    if (siteRes.data.code === 200) {
+      siteCategories.value = siteRes.data.rows || []
+    } else {
+      siteCategories.value = []
+    }
   } catch (error) {
     console.error("Failed to load data", error)
   } finally {
     loading.value = false
+    siteLoading.value = false
   }
 }
 
@@ -56,6 +72,7 @@ onMounted(() => {
         <button :class="{ active: activeTab === 'home' }" @click="activeTab = 'home'">首页</button>
         <button :class="{ active: activeTab === '3day' }" @click="activeTab = '3day'">3日财经分析</button>
         <button :class="{ active: activeTab === '7day' }" @click="activeTab = '7day'">7日财经分析</button>
+        <button :class="{ active: activeTab === 'sites' }" @click="activeTab = 'sites'">网站导航</button>
       </nav>
       <div v-if="batchInfo" class="header-right">
         <span class="date">{{ batchInfo.date }}</span>
@@ -63,7 +80,7 @@ onMounted(() => {
       </div>
     </header>
 
-    <main class="main-content" :class="{ home: activeTab === 'home', analysis: activeTab !== 'home' }">
+    <main class="main-content" :class="{ home: activeTab === 'home', analysis: activeTab === '3day' || activeTab === '7day', sites: activeTab === 'sites' }">
       <section v-show="activeTab === 'home'" class="news-section">
         <div class="section-header">
           <span class="blue-bar"></span>
@@ -93,7 +110,7 @@ onMounted(() => {
         <SilverPrice />
       </section>
 
-      <section v-show="activeTab !== 'home'" class="analysis-section full-width">
+      <section v-show="activeTab === '3day' || activeTab === '7day'" class="analysis-section full-width">
         <div class="analysis-content">
           <div v-show="activeTab === '3day'">
             <div v-if="analysis3Day" class="content-box">
@@ -107,6 +124,26 @@ onMounted(() => {
               <div v-html="md.render(analysis7Day.content)" class="markdown-body"></div>
             </div>
             <div v-else class="no-data">暂无7日分析数据</div>
+          </div>
+        </div>
+      </section>
+
+      <section v-show="activeTab === 'sites'" class="site-section full-width">
+        <div v-if="siteLoading" class="loading">加载中...</div>
+        <div v-else-if="siteCategories.length === 0" class="no-data">暂无网站导航</div>
+        <div v-else class="site-categories">
+          <div v-for="category in siteCategories" :key="category.id" class="site-category">
+            <div class="section-header">
+              <span class="blue-bar"></span>
+              <h2>{{ category.name }}</h2>
+            </div>
+            <div class="site-grid">
+              <a v-for="site in category.sites || []" :key="site.id" :href="normalizeSiteUrl(site.url)" target="_blank" class="site-card">
+                <div class="site-card-title">{{ site.name }}</div>
+                <div v-if="site.description" class="site-card-desc">{{ site.description }}</div>
+              </a>
+              <div v-if="!category.sites || category.sites.length === 0" class="no-data">暂无网站</div>
+            </div>
           </div>
         </div>
       </section>
@@ -211,6 +248,11 @@ onMounted(() => {
     padding-left: 10%;
     padding-right: 10%;
   }
+
+  .main-content.sites {
+    padding-left: 10%;
+    padding-right: 10%;
+  }
 }
 
 .section-header {
@@ -280,6 +322,45 @@ onMounted(() => {
 
 .news-link:hover {
   color: #3498db;
+}
+
+.site-categories {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.site-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.site-card {
+  display: block;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 12px 14px;
+  background-color: #fafafa;
+  color: #333;
+  text-decoration: none;
+  transition: box-shadow 0.2s;
+}
+
+.site-card:hover {
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+}
+
+.site-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+  text-align: center;
+}
+
+.site-card-desc {
+  font-size: 0.85rem;
+  color: #666;
 }
 
 /* Analysis Tabs Removed */
@@ -397,6 +478,15 @@ onMounted(() => {
 
   .news-text {
     font-size: 0.95rem;
+  }
+
+  .site-grid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 12px;
+  }
+
+  .site-card {
+    padding: 10px 12px;
   }
 }
 

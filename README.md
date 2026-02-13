@@ -1,7 +1,8 @@
 # bre_new
 
 ## 在线演示 (Live Demo)
-👉 [https://cj.wsky.fun/](https://cj.wsky.fun/)
+👉 客户端：[https://cj.wsky.fun/](https://cj.wsky.fun/)
+👉 管理端：[https://cj-admin.wsky.fun/](https://cj-admin.wsky.fun/)
 
 ## 系统功能介绍
 
@@ -29,11 +30,40 @@
 ## 目录结构
 
 - backend：Go 后端服务
-- frontend：Vue3 + Vite 前端
+- frontend：Vue3 + Vite 客户端前端
+- frontend_admin：Vue3 + Vite 管理端前端
+
+## 本地开发
+
+### 后端（backend）
+
+```bash
+cd backend
+cp config.yaml.example config.yaml
+go run .
+```
+
+默认监听端口可在 `backend/config.yaml` 配置（示例见 `backend/config.yaml.example`）。
+
+### 客户端前端（frontend）
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### 管理端前端（frontend_admin）
+
+```bash
+cd frontend_admin
+npm install
+npm run dev
+```
 
 ## 后端部署（backend）
 
-脚本：[build_push.sh](file:///Users/bre/workspace/self/bre_new/backend/build_push.sh)
+脚本模板：[build_push.sh.example](file:///Users/bre/workspace/self/bre_new/backend/build_push.sh.example)
 
 - 默认输出二进制名：`bre_new`
 - 默认部署目录：`/111workspace/news`
@@ -43,6 +73,10 @@
 
 ```bash
 cd backend
+
+# 复制脚本（首次使用）
+cp build_push.sh.example build_push.sh
+chmod +x build_push.sh
 
 # 构建
 ./build_push.sh build
@@ -105,4 +139,54 @@ DEPLOY_SSH_ARGS='-o ProxyCommand=none' ./package_push.sh
 
 # 只部署：指定某个 tar.gz
 ARTIFACT=release/frontend-dist-20260212152116.tar.gz ./package_push.sh deploy
+```
+
+## 管理端打包与部署（frontend_admin）
+
+### 仅打包
+
+脚本：[package.sh](file:///Users/bre/workspace/self/bre_new/frontend_admin/package.sh)
+
+```bash
+cd frontend_admin
+chmod +x package.sh
+./package.sh
+```
+
+- 默认输出目录：`/111workspace/news/dist/admin`
+- 可用环境变量：`TARGET_DIR`（用于覆盖输出目录，例如本机调试）
+
+```bash
+TARGET_DIR="$PWD/release" ./package.sh
+```
+
+### 打包并推送到服务器（上传 + 覆盖解压）
+
+脚本：[package_push.sh](file:///Users/bre/workspace/self/bre_new/frontend_admin/package_push.sh)
+
+```bash
+cd frontend_admin
+chmod +x package_push.sh
+
+# 默认：打包 -> 上传 -> 覆盖解压到 /111workspace/news/dist/admin
+./package_push.sh
+```
+
+默认参数：
+
+- 服务器：`root@114.132.245.76`（可用 `DEPLOY_HOST`/`DEPLOY_USER`/`DEPLOY_PORT` 覆盖）
+- 覆盖解压目录：`/111workspace/news/dist/admin`（可用 `DEPLOY_PATH` 覆盖）
+- 上传位置：`${DEPLOY_BASE_PATH}/release/`（默认 `DEPLOY_BASE_PATH=/111workspace/news`）
+
+常用覆盖配置示例：
+
+```bash
+# 指定 SSH 参数（例如禁用本机代理）
+DEPLOY_SSH_ARGS='-o ProxyCommand=none' ./package_push.sh
+
+# 只部署：使用 release/ 中最新的 tar.gz
+./package_push.sh deploy
+
+# 只部署：指定某个 tar.gz
+ARTIFACT=release/frontend-admin-dist-20260213153844.tar.gz ./package_push.sh deploy
 ```

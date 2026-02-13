@@ -2,6 +2,16 @@
 .idea/
 .vscode/
 
+# 通用
+*.log
+*.pid
+*.tmp
+.env
+.env.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
 backend/bre_new
 backend/*.log
 backend/*.db
@@ -17,3 +27,11 @@ frontend/release/
 frontend/*.local
 frontend/package.sh
 frontend/.vscode/
+
+frontend_admin/node_modules/
+frontend_admin/dist/
+frontend_admin/release/
+frontend_admin/*.local
+frontend_admin/package.sh
+frontend_admin/package_push.sh
+frontend_admin/.vscode/
