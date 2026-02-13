@@ -51,3 +51,11 @@ type Analysis struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }
+
+// TrafficStat 用于记录网站访问统计
+type TrafficStat struct {
+	IP        string    `gorm:"primaryKey;size:50" json:"ip"` // IP 地址，特殊值 "TOTAL_PV" 表示总访问量
+	Count     int64     `json:"count"`                        // 访问次数
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}

@@ -55,6 +55,15 @@ func main() {
 	// 3. Setup Router
 	r := gin.Default()
 
+	// Traffic Counter Middleware
+	r.Use(func(c *gin.Context) {
+		// 排除 OPTIONS 请求和静态资源（如果有）
+		if c.Request.Method != "OPTIONS" {
+			services.RecordVisit(c.ClientIP())
+		}
+		c.Next()
+	})
+
 	// CORS Middleware
 	r.Use(func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
