@@ -75,7 +75,7 @@ onMounted(() => {
             <div class="news-row">
               <span class="news-index">{{ index + 1 }}.</span>
               <p class="news-text">
-                <span class="news-time">[{{ batchInfo?.date }} {{ batchInfo?.type === 'morning' ? '08:00' : '12:00' }}]</span>
+                <!-- <span class="news-time">[{{ batchInfo?.date }} {{ batchInfo?.type === 'morning' ? '08:00' : '12:00' }}]</span> -->
                 <a v-if="item.url" :href="item.url" target="_blank" class="news-link">{{ item.content }}</a>
                 <span v-else>{{ item.content }}</span>
               </p>
@@ -339,6 +339,65 @@ onMounted(() => {
 
 :deep(.markdown-body li) {
   margin-bottom: 0.5em;
+}
+
+/* Mobile Optimization */
+@media (max-width: 768px) {
+  .container {
+    padding: 10px;
+  }
+
+  .header {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px 0;
+    margin-bottom: 20px;
+    position: relative; /* Avoid sticky taking too much space if needed, or keep sticky */
+  }
+
+  .header-left {
+    order: 1;
+    flex: 1 0 auto;
+    width: auto;
+  }
+  
+  .header-left h1 {
+    font-size: 1.5rem;
+  }
+
+  .header-right {
+    order: 2;
+    flex: 1 0 auto;
+    width: auto;
+    justify-content: flex-end;
+  }
+
+  .header-nav {
+    order: 3;
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .header-nav button {
+    width: auto;
+    flex: 1;
+    padding: 6px 0;
+    font-size: 0.9rem;
+    min-width: 0;
+  }
+
+  .main-content {
+    gap: 20px;
+  }
+  
+  .news-item {
+    padding: 12px 0;
+  }
+
+  .news-text {
+    font-size: 0.95rem;
+  }
 }
 
 :deep(.markdown-body code) {

@@ -24,7 +24,8 @@ type Config struct {
 		Database string `yaml:"database"`
 	} `yaml:"mysql"`
 	AI struct {
-		APIKey string `yaml:"api_key"`
+		APIKey       string `yaml:"api_key"`
+		DefaultModel string `yaml:"default_model"`
 	} `yaml:"ai"`
 	System struct {
 		Port string `yaml:"port"`

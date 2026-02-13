@@ -76,7 +76,7 @@ type AIResponse struct {
 func CallAI(prompt string) (string, error) {
 
 	reqBody := AIRequest{
-		Model: Model,
+		Model: config.AppConfig.AI.DefaultModel,
 		Input: []AIInput{
 			{
 				Role: "user",
@@ -263,7 +263,7 @@ type WebSearchLocation struct {
 
 func CallAIWebSearch(systemPrompt, prompt string) (string, error) {
 	reqBody := AIWebSearchRequest{
-		Model: Model,
+		Model: config.AppConfig.AI.DefaultModel,
 		Input: []AIInput{
 			{
 				Role: "system",
