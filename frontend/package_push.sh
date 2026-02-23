@@ -27,7 +27,7 @@ resolve_ssh_target() {
   echo "${ssh_target}"
 }
 
-SSH_ARGS=()
+declare -a SSH_ARGS=()
 RSYNC_SSH_CMD="ssh"
 
 set_transport_args() {
@@ -76,15 +76,19 @@ ssh_exec() {
 
   set_transport_args ""
   set +e
-  output="$(ssh "${SSH_ARGS[@]:-}" "${ssh_target}" "${remote_cmd}" 2>&1)"
+  set +u
+  output="$(ssh ${SSH_ARGS[@]+"${SSH_ARGS[@]}"} "${ssh_target}" "${remote_cmd}" 2>&1)"
   status=$?
+  set -u
   set -e
 
   if [ "${status}" -ne 0 ] && should_retry_without_proxy "${output}"; then
     set_transport_args "-o ProxyCommand=none"
     set +e
-    output="$(ssh "${SSH_ARGS[@]:-}" "${ssh_target}" "${remote_cmd}" 2>&1)"
+    set +u
+    output="$(ssh ${SSH_ARGS[@]+"${SSH_ARGS[@]}"} "${ssh_target}" "${remote_cmd}" 2>&1)"
     status=$?
+    set -u
     set -e
   fi
 

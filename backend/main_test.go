@@ -12,7 +12,7 @@ func TestRunUpdateTask(t *testing.T) {
 	config.InitDB()
 	db := config.DB
 	if err := db.AutoMigrate(&models.BatchLog{}, &models.NewsItem{}, &models.Analysis{}); err != nil {
-		t.Fatalf("Failed to migrate sqlite db: %v", err)
+		t.Fatalf("Failed to migrate mysql db: %v", err)
 	}
 
 	services.RunUpdateTask()
